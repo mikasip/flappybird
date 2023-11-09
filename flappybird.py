@@ -18,6 +18,7 @@ FPS = 60
 ANIMATION_SPEED = 0.17  # pixels per millisecond
 WIN_WIDTH = 284 * 2    # BG image size: 284x512 px; tiled twice
 WIN_HEIGHT = 512
+SCALE = 2
 
 
 class Bird(pygame.sprite.Sprite):
@@ -410,12 +411,7 @@ def getInput(bird, pipes):
             h_bot = p.bottom_height_px - bird.y + Bird.HEIGHT
     return array([x/WIN_WIDTH, h_top/(WIN_HEIGHT), h_bot/WIN_HEIGHT])
 
-
-display_surface = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT))
-pygame.display.set_caption('Pygame Flappy Bird')
-
-
-def play(pop_size, population, gen, not_run=False):
+def play(pop_size, population, gen, display_surface, display_surface_scaled, not_run=False):
 
     points = 0
     pipes_added = 0
@@ -535,9 +531,11 @@ def play(pop_size, population, gen, not_run=False):
         if not_run:
             return
 
-        draw_start_button()
+        draw_start_button(display_surface)
 
         pygame.event.pump()
+        
+        display_surface_scaled.blit(pygame.transform.scale(display_surface, display_surface_scaled.get_rect().size), (0, 0))
         pygame.display.flip()
 
         frame_clock += 1
@@ -570,7 +568,7 @@ start_button_clicked = False
 # Font for text display
 
 
-def draw_start_button(playing=True):
+def draw_start_button(display_surface, playing=True):
     text = "Start game"
     if playing:
         text = "Stop game"
@@ -581,7 +579,7 @@ def draw_start_button(playing=True):
                          10, start_button_rect.y + 10))
 
 
-def draw_slider(selected_value):
+def draw_slider(selected_value, display_surface):
     pygame.draw.rect(display_surface, white, (slider_x,
                      slider_y, slider_width, slider_height))
     button_x = slider_x + (slider_width - button_width) * \
@@ -593,7 +591,7 @@ def draw_slider(selected_value):
     display_surface.blit(text, (slider_x, slider_y - 50))
 
 
-def draw_slider_prob(selected_value):
+def draw_slider_prob(selected_value, display_surface):
     pygame.draw.rect(display_surface, white, (slider_x,
                      slider_prob_y, slider_width, slider_height))
     button_x = slider_x + (slider_width - button_width) * \
@@ -607,7 +605,7 @@ def draw_slider_prob(selected_value):
     display_surface.blit(text, (slider_x, slider_prob_y - 50))
 
 
-def update_population(sol_per_pop, selected_prob_value, not_run):
+def update_population(sol_per_pop, selected_prob_value, not_run, display_surface, display_surface_scaled):
     if not_run:
         random.seed(1)
     param_size = 21
@@ -629,7 +627,7 @@ def update_population(sol_per_pop, selected_prob_value, not_run):
         for i in range(len(population)):
             population[i] = AI(new_population[i])
         # Measuring the fitness of each chromosome in the population.
-        fitness = play(sol_per_pop, population, gen, not_run)
+        fitness = play(sol_per_pop, population, gen, display_surface, display_surface_scaled, not_run)
         if not_run:
             return
         gen += 1
@@ -665,22 +663,34 @@ def main():
     pygame.init()
     # the bird stays in the same x position, so bird.x is a constant
     # center bird on screen
+    display_surface_scaled = pygame.display.set_mode((WIN_WIDTH, WIN_HEIGHT), pygame.SCALED)
+    display_surface = display_surface_scaled.copy()
+    pygame.display.set_caption('Pygame Flappy Bird')
+
     started = False
     selected_value = 10  # Initial value
     selected_prob_value = 0.1 * 100  # Initial value
-    update_population(selected_value, selected_prob_value, True)
+    update_population(selected_value, selected_prob_value, True, display_surface, display_surface_scaled)
     slider1_selected = True
+    cur_screen_size = (WIN_WIDTH, WIN_HEIGHT)
     while not started:
+        
+        mult_x = WIN_WIDTH / cur_screen_size[0]
+        mult_y = WIN_HEIGHT / cur_screen_size[1]
         prev_selected_val = selected_value
         prev_selected_prob_value = selected_prob_value
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            if event.type == pygame.VIDEORESIZE:
+                display_surface_scaled = pygame.display.set_mode(event.size, pygame.SCALED)
+                cur_screen_size = event.size
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if start_button_rect.collidepoint(event.pos):
+                x, y = pygame.mouse.get_pos()
+                mouse_x, mouse_y = ( x * mult_x, y * mult_y)
+                if start_button_rect.collidepoint((mouse_x, mouse_y)):
                     started = True
-                mouse_x, mouse_y = pygame.mouse.get_pos()
                 if slider_x <= mouse_x <= slider_x + slider_width & slider_y <= mouse_y <= slider_y + slider_height:
                     slider1_selected = True
                 if slider_x <= mouse_x <= slider_x + slider_width & slider_prob_y <= mouse_y <= slider_prob_y + slider_height:
@@ -704,18 +714,19 @@ def main():
                             slider_prob_max, selected_prob_value))
 
         if selected_value != prev_selected_val or selected_prob_value != prev_selected_prob_value:
-            update_population(selected_value, selected_prob_value, True)
+            update_population(selected_value, selected_prob_value, True, display_surface, display_surface_scaled)
 
         # Draw the slider
-        draw_slider(selected_value)
-        draw_slider_prob(selected_prob_value)
+        draw_slider(selected_value, display_surface)
+        draw_slider_prob(selected_prob_value, display_surface)
 
-        draw_start_button(False)
+        draw_start_button(display_surface, False)
 
         # Update the display
+        display_surface_scaled.blit(pygame.transform.scale(display_surface, display_surface_scaled.get_rect().size), (0, 0))
         pygame.display.flip()
 
-    update_population(selected_value, selected_prob_value, False)
+    update_population(selected_value, selected_prob_value, False, display_surface, display_surface_scaled)
 
 
 if __name__ == '__main__':
